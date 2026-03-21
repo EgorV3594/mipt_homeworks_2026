@@ -24,6 +24,7 @@ income_querry_parts = 3
 cost_querry_parts = 4
 categories_querry_parts = 4
 stats_querry_parts = 2
+DateTuple = tuple[int, int, int]
 
 EXPENSE_CATEGORIES = {
     "Food": ("Supermarket", "Restaurants", "FastFood", "Coffee", "Delivery"),
@@ -34,7 +35,7 @@ EXPENSE_CATEGORIES = {
     "Clothing": ("Outerwear", "Casual", "Shoes", "Accessories"),
     "Education": ("Courses", "Books", "Tutors"),
     "Communications": ("Mobile", "Internet", "Subscriptions"),
-    "Other": ("empty"),
+    "Other": (),
 }
 
 financial_transactions_storage: list[dict[str, Any]] = []
@@ -58,18 +59,17 @@ def days_in_month(month: int, year: int) -> int:
     return days_in_februaty[0]
 
 
-def extract_date(date: str) -> tuple[int, int, int] | None:
-    parts = date.split("-")
+def extract_date(date_str: str) -> tuple[int, int, int] | None:
+    parts = date_str.split("-")
     if len(parts) != number_of_date_parts:
         return None
 
-    day, month, year = parts
-    if not (day.isdigit() and month.isdigit() and year.isdigit()):
+    if not (parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit()):
         return None
 
-    day = int(day)
-    month = int(month)
-    year = int(year)
+    day = int(parts[0])
+    month = int(parts[1])
+    year = int(parts[2])
 
     if year <= 0 or not (1 <= month <= number_of_month):
         return None
@@ -97,36 +97,23 @@ def cost_categories_handler() -> str:
     )
 
 
-def same_year(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
-    return d1[2] == d2[2]
+def date_loweq(d1: DateTuple, d2: DateTuple) -> bool:
+    if d1[2] != d2[2]:
+        return d1[2] < d2[2]
+    if d1[1] != d2[1]:
+        return d1[1] < d2[1]
+    return d1[0] <= d2[0]
 
 
-def same_month(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
-    return d1[1] == d2[1]
-
-
-def date_loweq(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
-    year1, month1, day1 = d1[2], d1[1], d1[0]
-    year2, month2, day2 = d2[2], d2[1], d2[0]
-
-    if year1 < year2:
-        return True
-    if year1 > year2:
-        return False
-    if month1 < month2:
-        return True
-    if month1 > month2:
-        return False
-    return day1 <= day2
-
-
-def one_month(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
-    return same_year(d1, d2) and same_month(d1, d2)
+def one_month(d1: DateTuple, d2: DateTuple) -> bool:
+    same_month = d1[1] == d2[1]
+    same_year = d1[2] == d2[2]
+    return same_month and same_year
 
 
 def update_totals_for_income(
     item: dict[str, Any],
-    report: tuple[int, int, int],
+    report: DateTuple,
     total_capital: float,
     month_income: float,
 ) -> tuple[float, float]:
@@ -140,7 +127,7 @@ def update_totals_for_income(
 
 def update_totals_for_cost(
     item: dict[str, Any],
-    report: tuple[int, int, int],
+    report: DateTuple,
     total_capital: float,
     month_expenses: float,
     expenses_by_cat: dict[str, float],
@@ -155,7 +142,7 @@ def update_totals_for_cost(
 
 
 def aggregate_stats(
-    report_tuple: tuple[int, int, int],
+    report_tuple: DateTuple,
 ) -> tuple[float, float, float, dict[str, float]]:
     total_capital = 0
     month_income = 0
@@ -163,8 +150,7 @@ def aggregate_stats(
     expenses_by_cat: dict[str, float] = {}
 
     for item in financial_transactions_storage:
-        item_date = item[KEY_DATE]
-        if not date_loweq(item_date, report_tuple):
+        if not date_loweq(item[KEY_DATE], report_tuple):
             continue
 
         if item[KEY_TYPE] == INCOME:
@@ -292,12 +278,12 @@ def handle_stats_command(parts: list[str]) -> str:
     return stats_handler(date_str)
 
 
-def command_handler(command: str, parts: list) -> str:
+def command_handler(command: str, parts: list) -> str | None:
     if command == INCOME:
         return handle_income_command(parts)
     is_cost_command = command == COST
     has_categories_len = len(parts) == categories_querry_parts
-    is_categories_subcommand = parts[1] == KEY_CATEGORY  # например, KEY_CATEGORY = "categories"
+    is_categories_subcommand = parts[1] == KEY_CATEGORY
 
     if is_cost_command and has_categories_len and is_categories_subcommand:
         return cost_categories_handler()
@@ -310,7 +296,7 @@ def command_handler(command: str, parts: list) -> str:
     return None
 
 
-def process_command(line: str) -> str:
+def process_command(line: str) -> str | None:
     if not line:
         return None
     parts = line.split()
