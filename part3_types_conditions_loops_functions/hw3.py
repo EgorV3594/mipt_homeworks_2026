@@ -35,7 +35,7 @@ EXPENSE_CATEGORIES = {
     "Clothing": ("Outerwear", "Casual", "Shoes", "Accessories"),
     "Education": ("Courses", "Books", "Tutors"),
     "Communications": ("Mobile", "Internet", "Subscriptions"),
-    "Other": (),
+    "Other": ("nothing"),
 }
 
 financial_transactions_storage: list[dict[str, Any]] = []
@@ -64,7 +64,7 @@ def extract_date(date_str: str) -> tuple[int, int, int] | None:
     if len(parts) != number_of_date_parts:
         return None
 
-    if not (parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit()):
+    if not all(x.isdigit() for x in parts):
         return None
 
     day = int(parts[0])
@@ -144,9 +144,9 @@ def update_totals_for_cost(
 def aggregate_stats(
     report_tuple: DateTuple,
 ) -> tuple[float, float, float, dict[str, float]]:
-    total_capital = 0
-    month_income = 0
-    month_expenses = 0
+    total_capital: float = 0
+    month_income: float = 0
+    month_expenses: float = 0
     expenses_by_cat: dict[str, float] = {}
 
     for item in financial_transactions_storage:
@@ -278,7 +278,7 @@ def handle_stats_command(parts: list[str]) -> str:
     return stats_handler(date_str)
 
 
-def command_handler(command: str, parts: list) -> str | None:
+def command_handler(command: str, parts: list[str]) -> str | None:
     if command == INCOME:
         return handle_income_command(parts)
     is_cost_command = command == COST
