@@ -14,7 +14,7 @@ KEY_TYPE = "type"
 KEY_AMOUNT = "amount"
 KEY_DATE = "date"
 KEY_CATEGORY = "categories"
-FLOAT_ZERO = 0.0
+
 
 number_of_date_parts = 3
 number_of_month = 12
@@ -34,7 +34,7 @@ EXPENSE_CATEGORIES = {
     "Clothing": ("Outerwear", "Casual", "Shoes", "Accessories"),
     "Education": ("Courses", "Books", "Tutors"),
     "Communications": ("Mobile", "Internet", "Subscriptions"),
-    "Other": (),
+    "Other": ("empty"),
 }
 
 financial_transactions_storage: list[dict[str, Any]] = []
@@ -97,41 +97,86 @@ def cost_categories_handler() -> str:
     )
 
 
+def same_year(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
+    return d1[2] == d2[2]
+
+
+def same_month(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
+    return d1[1] == d2[1]
+
+
 def date_loweq(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
-    if d1[2] != d2[2]:
-        return d1[2] < d2[2]
-    if d1[1] != d2[1]:
-        return d1[1] < d2[1]
-    return d1[0] <= d2[0]
+    year1, month1, day1 = d1[2], d1[1], d1[0]
+    year2, month2, day2 = d2[2], d2[1], d2[0]
+
+    if year1 < year2:
+        return True
+    if year1 > year2:
+        return False
+    if month1 < month2:
+        return True
+    if month1 > month2:
+        return False
+    return day1 <= day2
 
 
 def one_month(d1: tuple[int, int, int], d2: tuple[int, int, int]) -> bool:
-    same_month = d1[1] == d2[1]
-    same_year = d1[2] == d2[2]
-    return same_month and same_year
+    return same_year(d1, d2) and same_month(d1, d2)
 
 
-def aggregate_stats(report_tuple: tuple[int, int, int]) -> tuple[float, float, float, dict[str, float]]:
-    total_capital = FLOAT_ZERO
-    month_income = FLOAT_ZERO
-    month_expenses = FLOAT_ZERO
-    expenses_by_categories: dict[str, float] = {}
+def update_totals_for_income(
+    item: dict[str, Any],
+    report: tuple[int, int, int],
+    total_capital: float,
+    month_income: float,
+) -> tuple[float, float]:
+    item_date = item[KEY_DATE]
+    if not one_month(item_date, report):
+        return total_capital + item[KEY_AMOUNT], month_income
+    total_capital += item[KEY_AMOUNT]
+    month_income += item[KEY_AMOUNT]
+    return total_capital, month_income
+
+
+def update_totals_for_cost(
+    item: dict[str, Any],
+    report: tuple[int, int, int],
+    total_capital: float,
+    month_expenses: float,
+    expenses_by_cat: dict[str, float],
+) -> tuple[float, float]:
+    item_date = item[KEY_DATE]
+    total_capital -= item[KEY_AMOUNT]
+    if one_month(item_date, report):
+        month_expenses += item[KEY_AMOUNT]
+        cat = item[KEY_CATEGORY]
+        expenses_by_cat[cat] = expenses_by_cat.get(cat, 0) + item[KEY_AMOUNT]
+    return total_capital, month_expenses
+
+
+def aggregate_stats(
+    report_tuple: tuple[int, int, int],
+) -> tuple[float, float, float, dict[str, float]]:
+    total_capital = 0
+    month_income = 0
+    month_expenses = 0
+    expenses_by_cat: dict[str, float] = {}
 
     for item in financial_transactions_storage:
-        if not date_loweq(item[KEY_DATE], report_tuple):
+        item_date = item[KEY_DATE]
+        if not date_loweq(item_date, report_tuple):
             continue
-        if item[KEY_TYPE] == INCOME:
-            total_capital += item[KEY_AMOUNT]
-            if one_month(item[KEY_DATE], report_tuple):
-                month_income += item[KEY_AMOUNT]
-        elif item[KEY_TYPE] == COST:
-            total_capital -= item[KEY_AMOUNT]
-            if one_month(item[KEY_DATE], report_tuple):
-                month_expenses += item[KEY_AMOUNT]
-                expenses_by_categories[item[KEY_CATEGORY]] = expenses_by_categories.get(item[KEY_CATEGORY], FLOAT_ZERO)
-                + item[KEY_AMOUNT]
 
-    return total_capital, month_income, month_expenses, expenses_by_categories
+        if item[KEY_TYPE] == INCOME:
+            total_capital, month_income = update_totals_for_income(
+                item, report_tuple, total_capital, month_income,
+            )
+        elif item[KEY_TYPE] == COST:
+            total_capital, month_expenses = update_totals_for_cost(
+                item, report_tuple, total_capital, month_expenses, expenses_by_cat,
+            )
+
+    return total_capital, month_income, month_expenses, expenses_by_cat
 
 
 def profit_or_loss(month_income: float, month_expenses: float) -> str:
@@ -250,8 +295,11 @@ def handle_stats_command(parts: list[str]) -> str:
 def command_handler(command: str, parts: list) -> str:
     if command == INCOME:
         return handle_income_command(parts)
+    is_cost_command = command == COST
+    has_categories_len = len(parts) == categories_querry_parts
+    is_categories_subcommand = parts[1] == KEY_CATEGORY  # например, KEY_CATEGORY = "categories"
 
-    if command == COST and len(parts) == categories_querry_parts and parts[1] == KEY_CATEGORY:
+    if is_cost_command and has_categories_len and is_categories_subcommand:
         return cost_categories_handler()
 
     if command == COST:
