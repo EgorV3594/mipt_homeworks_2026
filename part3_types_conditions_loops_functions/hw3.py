@@ -18,12 +18,12 @@ KEY_CATEGORY = "categories"
 
 number_of_date_parts = 3
 number_of_month = 12
-days_in_other_montth = [30, 31]
-days_in_februaty = [28, 29]
-income_querry_parts = 3
-cost_querry_parts = 4
-categories_querry_parts = 4
-stats_querry_parts = 2
+days_in_other_month = [30, 31]
+days_in_february = [28, 29]
+income_query_parts = 3
+cost_query_parts = 4
+categories_query_parts = 4
+stats_query_parts = 2
 DateTuple = tuple[int, int, int]
 
 EXPENSE_CATEGORIES = {
@@ -51,12 +51,12 @@ def is_leap_year(year: int) -> bool:
 
 def days_in_month(month: int, year: int) -> int:
     if month in (1, 3, 5, 7, 8, 10, 12):
-        return days_in_other_montth[1]
+        return days_in_other_month[1]
     if month in (4, 6, 9, 11):
-        return days_in_other_montth[0]
+        return days_in_other_month[0]
     if is_leap_year(year):
-        return days_in_februaty[1]
-    return days_in_februaty[0]
+        return days_in_february[1]
+    return days_in_february[0]
 
 
 def extract_date(date_str: str) -> tuple[int, int, int] | None:
@@ -90,11 +90,8 @@ def category_exists(category_name: str) -> bool:
 
 
 def cost_categories_handler() -> str:
-    return "\n".join(
-        f"{k}::{v}"
-        for k, kv in EXPENSE_CATEGORIES.items()
-        for v in kv
-    )
+    lines = [f"{category}::{subcat}" for category, subcats in EXPENSE_CATEGORIES.items() for subcat in subcats]
+    return "\n".join(lines)
 
 
 def date_loweq(d1: DateTuple, d2: DateTuple) -> bool:
@@ -155,11 +152,18 @@ def aggregate_stats(
 
         if item[KEY_TYPE] == INCOME:
             total_capital, month_income = update_totals_for_income(
-                item, report_tuple, total_capital, month_income,
+                item,
+                report_tuple,
+                total_capital,
+                month_income,
             )
         elif item[KEY_TYPE] == COST:
             total_capital, month_expenses = update_totals_for_cost(
-                item, report_tuple, total_capital, month_expenses, expenses_by_cat,
+                item,
+                report_tuple,
+                total_capital,
+                month_expenses,
+                expenses_by_cat,
             )
 
     return total_capital, month_income, month_expenses, expenses_by_cat
@@ -246,24 +250,26 @@ def stats_handler(report_date: str) -> str:
 
 
 def handle_income_command(parts: list[str]) -> str:
-    if len(parts) != income_querry_parts:
+    if len(parts) != income_query_parts:
         return UNKNOWN_COMMAND_MSG
 
     amount_str = parts[1]
     date_str = parts[2]
 
+    amount_str = amount_str.replace(",", ".")
     amount = float(amount_str)
     return income_handler(amount, date_str)
 
 
 def handle_cost_add_command(parts: list[str]) -> str:
-    if len(parts) != cost_querry_parts:
+    if len(parts) != cost_query_parts:
         return UNKNOWN_COMMAND_MSG
 
     category_name = parts[1]
     amount_str = parts[2]
     date_str = parts[3]
 
+    amount_str = amount_str.replace(",", ".")
     amount = float(amount_str)
     result = cost_handler(category_name, amount, date_str)
     if result == NOT_EXISTS_CATEGORY:
@@ -272,7 +278,7 @@ def handle_cost_add_command(parts: list[str]) -> str:
 
 
 def handle_stats_command(parts: list[str]) -> str:
-    if len(parts) != stats_querry_parts:
+    if len(parts) != stats_query_parts:
         return UNKNOWN_COMMAND_MSG
     date_str = parts[1]
     return stats_handler(date_str)
@@ -282,7 +288,7 @@ def command_handler(command: str, parts: list[str]) -> str | None:
     if command == INCOME:
         return handle_income_command(parts)
     is_cost_command = command == COST
-    has_categories_len = len(parts) == categories_querry_parts
+    has_categories_len = len(parts) == categories_query_parts
     is_categories_subcommand = parts[1] == KEY_CATEGORY
 
     if is_cost_command and has_categories_len and is_categories_subcommand:
