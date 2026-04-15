@@ -144,18 +144,18 @@ class MIPTCache(Cache[K, V]):
 
 
 class CachedProperty[V]:
-    def __init__(self, func: Callable[..., V]) -> None:
-        self.func = func
+    def __init__(self, _func: Callable[..., V]) -> None:
+        self.func = _func
 
     def __get__(self, instance: HasCache[Any, Any] | None, owner: type) -> Any:
         if instance is None:
             return self
 
-        key = self.func.__name__
+        key = self._func.__name__
         cached_value = instance.cache.get(key)
         if cached_value is not None:
             return cached_value
 
-        value = self.func(instance)
+        value = self._func(instance)
         instance.cache.set(key, value)
         return value
