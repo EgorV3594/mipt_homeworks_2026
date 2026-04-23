@@ -95,8 +95,6 @@ class CircuitBreaker:
                 )
                 raise err from exc
             raise
-        except Exception:
-            raise
         else:
             self._failures_count = 0
             return result
