@@ -23,9 +23,9 @@ class CallableWithMeta(Protocol[P, R_co]):
 
 class BreakerError(Exception):
     func_name: str
-    block_time: datetime
+    block_time: datetime | None
 
-    def __init__(self, func_name: str, block_time: datetime):
+    def __init__(self, func_name: str, block_time: datetime | None):
         super().__init__(TOO_MUCH)
         self.func_name = func_name
         self.block_time = block_time
@@ -55,38 +55,49 @@ class CircuitBreaker:
         self._block_time: datetime | None = None
 
     def __call__(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
+        return self._make_wrapper(func)
+
+    def _make_wrapper(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R_co:
-            now = datetime.now(UTC)
-            if self._blocked_until is not None:
-                if now < self._blocked_until:
-                    err = BreakerError(
-                        func_name=f"{func.__module__}.{func.__name__}",
-                        block_time=self._blocked_until - timedelta(seconds=self.time_to_recover),
-                    )
-                    raise err
-                self._blocked_until = None
-                self._failures_count = 0
-
-            try:
-                result = func(*args, **kwargs)
-            except self.triggers_on as exc:
-                self._failures_count += 1
-                if self._failures_count >= self.critical_count:
-                    block_time = now
-                    self._block_time = block_time
-                    self._blocked_until = now + timedelta(seconds=self.time_to_recover)
-                    self._failures_count = 0
-                    err = BreakerError(func_name=f"{func.__module__}.{func.__name__}", block_time=block_time)
-                    raise err from exc
-                raise
-            except Exception:
-                raise
-            else:
-                self._failures_count = 0
-                return result
+            self._check_blocked(func)
+            return self._call_with_breaker_logic(func, *args, **kwargs)
 
         return wrapper
+
+    def _check_blocked(self, func: CallableWithMeta[P, R_co]) -> None:
+        now = datetime.now(UTC)
+        if self._blocked_until is not None:
+            if now < self._blocked_until:
+                err = BreakerError(
+                    func_name=f"{func.__module__}.{func.__name__}",
+                    block_time=self._block_time,
+                )
+                raise err
+            self._blocked_until = None
+            self._block_time = None
+            self._failures_count = 0
+
+    def _call_with_breaker_logic(self, func: CallableWithMeta[P, R_co], *args: P.args, **kwargs: P.kwargs) -> R_co:
+        now = datetime.now(UTC)
+        try:
+            result = func(*args, **kwargs)
+        except self.triggers_on as exc:
+            self._failures_count += 1
+            if self._failures_count >= self.critical_count:
+                block_time = now
+                self._block_time = block_time
+                self._blocked_until = block_time + timedelta(seconds=self.time_to_recover)
+                self._failures_count = 0
+                err = BreakerError(
+                    func_name=f"{func.__module__}.{func.__name__}",
+                    block_time=block_time,
+                )
+                raise err from exc
+            raise
+        else:
+            self._failures_count = 0
+            return result
 
 
 circuit_breaker = CircuitBreaker(5, 30, Exception)
