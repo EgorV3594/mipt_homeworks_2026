@@ -1,5 +1,6 @@
 from typing import Any, cast
 from openai import OpenAI, OpenAIError
+import os
 
 from src.expanding_references import expand_references
 from src.config import AppConfig
@@ -9,6 +10,10 @@ Message = dict[str, str]
 
 
 CHAT_HISTORY: list[Message] = []
+
+
+def clear_console() -> None:
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def ask_llm(message: str, config: AppConfig) -> str:
@@ -108,8 +113,10 @@ def reset_chat(args: list[str], config: AppConfig) -> bool:
 
     if args:
         print('Команда /reset не принимает аргументы.')
+        return True
 
     CHAT_HISTORY.clear()
+    clear_console()
     print('История чата очищена.')
     return True
 
