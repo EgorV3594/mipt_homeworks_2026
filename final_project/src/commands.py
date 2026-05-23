@@ -64,14 +64,6 @@ COMMANDS = {
         description='показать список команд',
         handler=handle_help_command,
     ),
-    '/exit': Command(
-        description='выйти из приложения',
-        handler=handle_exit_command,
-    ),
-    '/quit': Command(
-        description='выйти из приложения',
-        handler=handle_exit_command,
-    ),
     '\\q': Command(
         description='выйти из приложения, когда включен режим filechunk выходит только из него',
         handler=handle_exit_command,
